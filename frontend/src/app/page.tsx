@@ -1,39 +1,114 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import WalletButton from "./components/WalletButton";
 import ScoreCard from "./components/ScoreCard";
 import AttestationsCard from "./components/AttestationsCard";
 import CreditGateModal from "./components/CreditGateModal";
 import { ethers, parseEther } from "ethers";
-import { useEthersSigner } from "../hooks/useEthersSigner"; // Import the hook
+import { useEthersSigner } from "../hooks/useEthersSigner";
 import { 
   CONTRACT_ADDRESSES, 
   TrustSwapABI,
   LoanContractABI,
+  CredTrustRegistryABI,
   getContract 
 } from "../utils/contracts";
 
-const swapContractAddress = "0x5f5AdF7313793Ba2d2F4290B64d44994bC33B92c";
+const swapContractAddress = "0x2741e9f552B975A91C90fd5E6f39Aaa8E67dFAd1";
 
 export default function Home() {
-  const [score, setScore] = useState<number>(750);
+  // All state is now managed here in the parent component
+  const [score, setScore] = useState<number>(0);
+  const [scoreLoading, setScoreLoading] = useState(true);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [ipfsHash, setIpfsHash] = useState("");
+  
   const [isCreditGateOpen, setIsCreditGateOpen] = useState(false);
   const [isIPFSModalOpen, setIsIPFSModalOpen] = useState(false);
   const [loans, setLoans] = useState<any[]>([]);
   
-  // Get the signer from the connected wallet
   const signer = useEthersSigner();
 
-  const handleRecalculate = () => {
-    // ... (rest of the function is unchanged)
-    const change = Math.floor(Math.random() * 41) - 20;
-    setScore(Math.max(500, Math.min(900, score + change)));
+  // --- Logic moved up from ScoreCard ---
+  const fetchScore = useCallback(async () => {
+    if (signer) {
+      try {
+        setScoreLoading(true);
+        const address = await signer.getAddress();
+        const registry = getContract(
+          CONTRACT_ADDRESSES.credTrustRegistry,
+          CredTrustRegistryABI,
+          signer
+        );
+        const userScore = await registry.getScore(address);
+        setScore(Number(userScore));
+      } catch (error) {
+        console.error("Error fetching score:", error);
+        setScore(0);
+      } finally {
+        setScoreLoading(false);
+      }
+    } else {
+      setScoreLoading(false);
+      setScore(0);
+    }
+  }, [signer]);
+
+  useEffect(() => {
+    fetchScore();
+  }, [fetchScore]);
+
+  const handleRecalculateScore = async () => {
+    if (!signer) {
+      alert("Please connect your wallet to recalculate your score.");
+      return;
+    }
+    
+    setIsRecalculating(true);
+    try {
+      const address = await signer.getAddress();
+      const registry = getContract(
+        CONTRACT_ADDRESSES.credTrustRegistry,
+        CredTrustRegistryABI,
+        signer
+      );
+
+      // The factors array no longer includes the staked amount directly,
+      // as the smart contract now adds it. The order must match the updated struct.
+      const factorsAsArray = [
+        Math.floor(Math.random() * 101), // aaveRepayments
+        Math.floor(Math.random() * 101), // uniswapLpDuration
+        0,                               // Placeholder for stakedAmount (contract will fill this)
+        Math.floor(Math.random() * 101), // transactionVolume
+        Math.random() > 0.5 ? 100 : 0    // identityVerified
+      ];
+      
+      const newIpfsHash = `QmRecalc${Math.random().toString(36).substring(2, 10)}`;
+      
+      // The contract's updateScore function now internally handles the staked amount
+      const tx = await registry.updateScore(address, factorsAsArray, newIpfsHash);
+      await tx.wait();
+      
+      setIpfsHash(newIpfsHash);
+      await fetchScore();
+      alert("Score updated successfully!");
+
+    } catch (error) {
+      console.error("Error recalculating score:", error);
+      alert("Failed to recalculate score. See console for details.");
+    } finally {
+      setIsRecalculating(false);
+    }
   };
 
   const handleViewIPFS = () => {
-    setIsIPFSModalOpen(true);
+    if (ipfsHash) {
+      window.open(`https://ipfs.io/ipfs/${ipfsHash}`, '_blank');
+    } else {
+      alert("Recalculate score first to generate an IPFS hash.");
+    }
   };
 
   useEffect(() => {
@@ -149,7 +224,7 @@ export default function Home() {
         timestamp: "2023-10-15T14:30:00Z"
       }
     ],
-    contractAddress: "0x2a1E673F30d34Edd455f175a2ebFb34079774d26"
+    contractAddress: "0x776Ad32c837737De4B493637c0Fa7F052Ef0d0dE"
   };
 
   return (
@@ -164,7 +239,14 @@ export default function Home() {
         </header>
 
         <section className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <ScoreCard />
+          {/* ScoreCard now receives all its data and functions as props */}
+          <ScoreCard 
+            score={score}
+            loading={scoreLoading}
+            isRecalculating={isRecalculating}
+            onRecalculate={handleRecalculateScore}
+            onViewIPFS={handleViewIPFS}
+          />
           <AttestationsCard />
           
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
@@ -192,6 +274,7 @@ export default function Home() {
               )}
             </div>
           </div>
+          <button onClick={handleSwap} className="rounded-md border border-zinc-700 px-4 py-2 hover:bg-zinc-800">Swap ETH for TRUST</button>
         </section>
 
         <section className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -199,7 +282,7 @@ export default function Home() {
             <h3 className="text-lg font-medium">Developer</h3>
             <ul className="mt-3 list-disc space-y-1 pl-5 text-zinc-300">
               <li>
-                <Link href="https://etherscan.io/address/0x2a1E673F30d34Edd455f175a2ebFb34079774d26" className="underline underline-offset-4 hover:text-zinc-100">
+                <Link href="https://etherscan.io/address/0x776Ad32c837737De4B493637c0Fa7F052Ef0d0dE" className="underline underline-offset-4 hover:text-zinc-100">
                   Registry contract
                 </Link>
               </li>

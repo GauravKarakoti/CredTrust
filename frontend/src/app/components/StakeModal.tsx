@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { ethers } from "ethers";
+import { useEthersSigner } from "../../hooks/useEthersSigner"; // You should use the hook for consistency
 import { CONTRACT_ADDRESSES, TrustTokenABI, CredTrustRegistryABI, getContract } from "../../utils/contracts";
-import { cn } from "../../lib/utils.ts";
+import { cn } from "../../lib/utils";
 
 export default function StakeModal({
   isOpen,
@@ -17,43 +18,41 @@ export default function StakeModal({
   const [amount, setAmount] = useState(100);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  
+  // FIX: Get the signer from the wagmi/Web3Modal hook
+  const signer = useEthersSigner();
 
   const handleStake = async () => {
-    if (!isOpen) return;
+    // Check for the signer from the hook, not window.ethereum
+    if (!signer) {
+      setError("Please connect your wallet first.");
+      return;
+    }
 
     setLoading(true);
     setError("");
 
     try {
-      // FIX: Add a guard clause to ensure window.ethereum exists
-      if (!window.ethereum) {
-        throw new Error("No crypto wallet found. Please install it.");
-      }
-
-      // FIX: Use the `as any` type assertion
-      const provider = new ethers.BrowserProvider(window.ethereum as any);
-      const signer = await provider.getSigner();
       const address = await signer.getAddress();
 
-      // Get contracts
+      // Get contracts connected to the SIGNER, which enables write transactions
       const trustToken = getContract(
         CONTRACT_ADDRESSES.trustToken,
         TrustTokenABI,
-        signer
+        signer // Use the signer here
       );
 
       const registry = getContract(
         CONTRACT_ADDRESSES.credTrustRegistry,
         CredTrustRegistryABI,
-        signer
+        signer // And here
       );
 
-      // Approve tokens first
+      // Now this call will work because `trustToken` is connected to a signer
       const amountWei = ethers.parseUnits(amount.toString(), 18);
       const approveTx = await trustToken.approve(CONTRACT_ADDRESSES.credTrustRegistry, amountWei);
       await approveTx.wait();
 
-      // Stake tokens
       const stakeTx = await registry.stakeForUser(address, amountWei);
       await stakeTx.wait();
 
@@ -61,7 +60,9 @@ export default function StakeModal({
       onClose();
     } catch (err: any) {
       console.error("Staking failed:", err);
-      setError(err.message || "Staking failed");
+      // More user-friendly error parsing
+      const reason = err.reason || "An unknown error occurred during staking.";
+      setError(reason);
     } finally {
       setLoading(false);
     }
@@ -93,7 +94,7 @@ export default function StakeModal({
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-900/30 text-red-400 rounded-lg text-sm">
+          <div className="mb-4 p-3 bg-rose-900/30 text-rose-400 rounded-lg text-sm">
             {error}
           </div>
         )}

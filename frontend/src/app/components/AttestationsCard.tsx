@@ -1,34 +1,94 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import StakeModal from "./StakeModal";
-import { cn } from "../../lib/utils"
+import { cn } from "../../lib/utils";
+import { ethers } from "ethers";
+import { useEthersSigner } from "../../hooks/useEthersSigner";
+import { 
+  CONTRACT_ADDRESSES, 
+  CredTrustRegistryABI, 
+  getContract 
+} from "../../utils/contracts";
+
+// Define a type for our attestation data
+interface Attestation {
+  attester: string;
+  amount: string; // We'll store it as a formatted string
+  timestamp: string;
+}
 
 export default function AttestationsCard() {
-  const [attestations, setAttestations] = useState([
-    "Staked 500 TRUST to vouch for CID Qm...abc",
-  ]);
-  
+  const [attestations, setAttestations] = useState<Attestation[]>([]);
+  const [totalStaked, setTotalStaked] = useState<bigint>(BigInt(0));
   const [isStakeModalOpen, setIsStakeModalOpen] = useState(false);
-  const [isUnstaking, setIsUnstaking] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  const signer = useEthersSigner();
 
-  const handleStake = (amount: number) => {
-    setAttestations([
-      ...attestations,
-      `Staked ${amount} TRUST to vouch for CID Qm...${Math.random().toString(36).substring(2, 8)}`
-    ]);
-  };
-
-  const handleUnstake = () => {
-    if (attestations.length === 0) return;
+  const fetchAttestations = useCallback(async () => {
+    if (!signer) {
+      setLoading(false);
+      return;
+    }
     
-    setIsUnstaking(true);
-    setTimeout(() => {
-      const newAttestations = [...attestations];
-      newAttestations.pop();
-      setAttestations(newAttestations);
-      setIsUnstaking(false);
-    }, 1500);
+    setLoading(true);
+    try {
+      const address = await signer.getAddress();
+      const registry = getContract(
+        CONTRACT_ADDRESSES.credTrustRegistry,
+        CredTrustRegistryABI,
+        signer
+      );
+      
+      const onChainAttestations = await registry.getAttestations(address);
+      
+      const formattedAttestations = onChainAttestations.map((att: any) => ({
+        attester: att[0],
+        amount: ethers.formatUnits(att[1], 18),
+        timestamp: new Date(Number(att[2]) * 1000).toLocaleString(),
+      }));
+
+      // Calculate total staked amount
+      const stakedAmount = await registry.stakedAmounts(address);
+      setTotalStaked(stakedAmount);
+
+      setAttestations(formattedAttestations);
+    } catch (error) {
+      console.error("Error fetching attestations:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [signer]);
+
+  useEffect(() => {
+    fetchAttestations();
+  }, [fetchAttestations]);
+
+  const handleUnstake = async () => {
+    if (!signer || totalStaked === BigInt(0)) return;
+
+    setLoading(true);
+    try {
+      const registry = getContract(
+        CONTRACT_ADDRESSES.credTrustRegistry,
+        CredTrustRegistryABI,
+        signer
+      );
+
+      // We will unstake the entire amount for simplicity in this UI
+      const tx = await registry.unstake(totalStaked);
+      await tx.wait();
+      
+      alert("Unstake successful!");
+      // Refresh the attestations list after unstaking
+      await fetchAttestations(); 
+    } catch (error: any) {
+      console.error("Unstaking failed:", error);
+      alert(`Unstaking failed: ${error.reason || "An unknown error occurred."}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -36,28 +96,28 @@ export default function AttestationsCard() {
       <StakeModal 
         isOpen={isStakeModalOpen} 
         onClose={() => setIsStakeModalOpen(false)}
-        onStake={handleStake}
+        // Refresh data after a successful stake
+        onStake={() => fetchAttestations()}
       />
       
-      <h3 className="text-lg font-medium">Attestations</h3>
+      <h3 className="text-lg font-medium">Your Attestations</h3>
+      <p className="text-sm text-zinc-400">Total Staked: {ethers.formatUnits(totalStaked, 18)} TRUST</p>
       
-      <ul className="mt-3 space-y-2 text-sm text-zinc-300">
-        {attestations.length > 0 ? (
+      <ul className="mt-3 space-y-2 text-sm text-zinc-300 h-24 overflow-y-auto">
+        {loading ? (
+          <li className="text-zinc-500">Loading attestations...</li>
+        ) : attestations.length > 0 ? (
           attestations.map((att, index) => (
             <li key={index} className="flex items-start">
               <span className="text-emerald-500 mr-2">•</span>
-              {att}
+              <span>
+                Attester {att.attester.substring(0, 6)}... staked {att.amount} TRUST on {att.timestamp}
+              </span>
             </li>
           ))
         ) : (
           <li className="text-zinc-500">No active attestations</li>
         )}
-        
-        <li className={attestations.length > 0 ? "text-emerald-500" : "text-rose-500"}>
-          {attestations.length > 0 
-            ? "No disputes open" 
-            : "Stake TRUST to create attestations"}
-        </li>
       </ul>
       
       <div className="mt-4 flex gap-2">
@@ -71,12 +131,12 @@ export default function AttestationsCard() {
         <button 
           className={cn(
             "rounded-md border border-zinc-700 px-3 py-2 hover:bg-zinc-800",
-            attestations.length === 0 && "opacity-50 cursor-not-allowed"
+            totalStaked === BigInt(0) && "opacity-50 cursor-not-allowed"
           )}
           onClick={handleUnstake}
-          disabled={attestations.length === 0 || isUnstaking}
+          disabled={totalStaked === BigInt(0) || loading}
         >
-          {isUnstaking ? "Processing..." : "Unstake"}
+          {loading ? "Processing..." : "Unstake All"}
         </button>
       </div>
     </div>

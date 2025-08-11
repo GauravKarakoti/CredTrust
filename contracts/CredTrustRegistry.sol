@@ -36,6 +36,9 @@ contract CredTrustRegistry is ScoreCalculator {
         ScoreFactors memory factors,
         string memory ipfsHash
     ) external {
+        // IMPORTANT: We now pass the user's staked amount into the factors
+        factors.stakedAmount = stakedAmounts[user];
+        
         uint256 newScore = calculateScore(factors);
         scores[user] = UserScore(newScore, block.timestamp, ipfsHash);
         emit ScoreUpdated(user, newScore, ipfsHash);

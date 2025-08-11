@@ -40,6 +40,11 @@ contract LoanContract {
         // Implement actual loan disbursement logic here
         emit LoanApproved(msg.sender, productId);
     }
+
+    function getLoanProduct(uint256 index) public view returns (Loan memory) {
+        require(index < loanProducts.length, "Invalid product index");
+        return loanProducts[index];
+    }
     
     function getLoanProductCount() public view returns (uint256) {
         return loanProducts.length;

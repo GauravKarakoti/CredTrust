@@ -1,6 +1,6 @@
 "use client";
 
-import router from "next/router";
+import { useRouter } from "next/navigation";
 import { useContracts } from "../../hooks/useContract";
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
@@ -16,6 +16,7 @@ export default function CreditGateModal({
 }) {
   const { loanContract } = useContracts();
   const [loanProducts, setLoanProducts] = useState<any[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchLoans = async () => {
@@ -24,7 +25,7 @@ export default function CreditGateModal({
           const loanCount = await loanContract.getLoanProductCount();
           const loans: any[] = [];
           
-          for (let i = 0; i < loanCount; i++) {
+          for (let i = 0; i < Number(loanCount); i++) {
             const loan = await loanContract.loanProducts(i);
             loans.push({
               id: i,
@@ -42,23 +43,39 @@ export default function CreditGateModal({
       }
     };
     
-    fetchLoans();
-  }, [loanContract]);
+    if (isOpen) {
+      fetchLoans();
+    }
+  }, [loanContract, isOpen]);
+
   if (!isOpen) return null;
 
   const isApproved = score >= 700;
 
   const handleExploreLoans = () => {
+    // We'll close the modal before navigating
+    onClose(); 
     router.push('/loans');
   }
 
   const handleUnderstandScore = () => {
+    onClose();
     router.push('/score-education');
   }
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-zinc-900 rounded-xl p-6 w-full max-w-md border border-zinc-800">
+      <div className="relative bg-zinc-900 rounded-xl p-6 w-full max-w-md border border-zinc-800">
+        
+        {/* NEW: "X" button in the top-right corner */}
+        <button 
+          onClick={onClose}
+          className="absolute top-3 right-3 text-zinc-500 hover:text-zinc-300 transition-colors"
+          aria-label="Close modal"
+        >
+          ✕
+        </button>
+
         <h3 className="text-xl font-medium mb-4">Credit Gate Result</h3>
         
         <div className={`rounded-lg p-4 mb-4 ${isApproved ? 'bg-emerald-900/30' : 'bg-rose-900/30'}`}>
@@ -73,7 +90,7 @@ export default function CreditGateModal({
         <div className="text-sm text-zinc-400 mb-4">
           {isApproved 
             ? "Congratulations! You qualify for under-collateralized loans. Your credit score meets our minimum requirement of 700."
-            : "Your credit score is below the minimum requirement of 700. To qualify for under-collateralized loans, you need to improve your score by:"}
+            : "Your credit score is below the minimum requirement of 700. To qualify for under-collateralized loans, you need to improve your score."}
         </div>
 
         {!isApproved && (
@@ -93,12 +110,21 @@ export default function CreditGateModal({
           </div>
         )}
 
-        <button 
-          className="w-full rounded-md border border-zinc-700 px-4 py-2 hover:bg-zinc-800"
-          onClick={isApproved ? handleExploreLoans : handleUnderstandScore}
-        >
-          {isApproved ? "Explore Loan Options" : "Understand My Score"}
-        </button>
+        {/* NEW: Button container to hold both actions */}
+        <div className="mt-6 flex flex-col sm:flex-row gap-3">
+          <button 
+            className="w-full rounded-md border border-zinc-700 px-4 py-2 hover:bg-zinc-800"
+            onClick={onClose}
+          >
+            Close
+          </button>
+          <button 
+            className="w-full rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-500"
+            onClick={isApproved ? handleExploreLoans : handleUnderstandScore}
+          >
+            {isApproved ? "Explore Loan Options" : "Understand My Score"}
+          </button>
+        </div>
       </div>
     </div>
   );
