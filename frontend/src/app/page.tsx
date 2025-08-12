@@ -15,7 +15,7 @@ import {
   CredTrustRegistryABI,
   getContract 
 } from "../utils/contracts";
-import { type Loan } from "../types";
+import { type Loan, type LoanStruct } from "../types";
 
 const swapContractAddress = "0x418103499076ad5731F07c06881f101c3539BC86";
 
@@ -27,8 +27,8 @@ export default function Home() {
   
   const [isCreditGateOpen, setIsCreditGateOpen] = useState(false);
   const [isIPFSModalOpen, setIsIPFSModalOpen] = useState(false);
-  const [availableLoans, setAvailableLoans] = useState<any[]>([]);
-
+  const [availableLoans, setAvailableLoans] = useState<Loan[]>([]);
+  
   const [myLoans, setMyLoans] = useState<Loan[]>([]);
   
   const signer = useEthersSigner();
@@ -120,9 +120,9 @@ export default function Home() {
         const loanContract = getContract(CONTRACT_ADDRESSES.loanContract, LoanContractABI, provider);
         try {
           const loanCount = await loanContract.getLoanProductCount();
-          const loansData: Loan[] = [];
-          for (let i = 0; i < Number(loanCount); i++) {
-            const loan = await loanContract.getLoanProduct(i);
+          const loansData: Loan[] = []; // Use Loan type
+        for (let i = 0; i < Number(loanCount); i++) {
+          const loan: LoanStruct = await loanContract.getLoanProduct(i);
             loansData.push({
               id: i,
               amount: ethers.formatEther(loan[0]),
@@ -200,9 +200,15 @@ export default function Home() {
         })
       );
       setMyLoans(myLoansData);
-    } catch (error: any) {
+    } catch (error: unknown) { // FIX: Use unknown and perform type check
       console.error("Loan application failed:", error);
-      alert(`Error: ${error.reason || "Loan application failed"}`);
+      let message = "Loan application failed";
+      if (error instanceof Error) {
+        // Ethers errors often have a 'reason' property
+        const ethersError = error as Error & { reason?: string };
+        message = ethersError.reason || error.message;
+      }
+      alert(`Error: ${message}`);
     }
   };
 
@@ -226,7 +232,7 @@ export default function Home() {
       console.log("Transaction confirmed!");
       alert("Swap successful!");
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Swap failed:", error);
       alert("Swap failed. Check the console for details.");
     }

@@ -8,7 +8,7 @@ import {
   LoanContractABI,
   getContract 
 } from "../../utils/contracts";
-import { type Loan } from "../../types";
+import { type Loan, type LoanStruct } from "../../types";
 
 export default function LoansPage() {
   const [loans, setLoans] = useState<Loan[]>([]);
@@ -36,7 +36,7 @@ export default function LoansPage() {
         const loansData: Loan[] = [];
         
         for (let i = 0; i < Number(loanCount); i++) {
-          const loan = await loanContract.getLoanProduct(i);
+          const loan: LoanStruct = await loanContract.getLoanProduct(i);
           loansData.push({
             id: i,
             amount: ethers.formatEther(loan[0]),
@@ -77,10 +77,12 @@ export default function LoansPage() {
       const tx = await loanContract.applyForLoan(productId);
       await tx.wait();
       alert("Loan application submitted successfully!");
-    } catch (error: unknown) { // Use unknown for errors
+    } catch (error: unknown) { // FIX: Use unknown for errors
       console.error("Loan application failed:", error);
       if (error instanceof Error) {
-        alert(`Error: ${error.message}`);
+        // This is a safer way to access error messages
+        const ethersError = error as Error & { reason?: string };
+        alert(`Error: ${ethersError.reason || error.message}`);
       } else {
         alert("An unknown error occurred.");
       }
