@@ -25,6 +25,7 @@ export default function LoansPage() {
 
       try {
         setLoading(true);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const provider = new ethers.BrowserProvider(window.ethereum as any);
         const loanContract = getContract(
           CONTRACT_ADDRESSES.loanContract,
@@ -66,6 +67,7 @@ export default function LoansPage() {
     }
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const provider = new ethers.BrowserProvider(window.ethereum as any);
       const signer = await provider.getSigner();
       const loanContract = getContract(

@@ -16,7 +16,7 @@ export default function WalletButton() {
     const fetchBalance = async () => {
       // Add a check for window.ethereum to satisfy TypeScript
       if (isConnected && address && window.ethereum) {
-        // Use `as any` to assert the type and prevent conflicts
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const provider = new ethers.BrowserProvider(window.ethereum as any);
         const trustToken = getContract(
           CONTRACT_ADDRESSES.trustToken,

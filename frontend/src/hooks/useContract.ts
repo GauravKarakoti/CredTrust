@@ -24,7 +24,6 @@ export function useContracts() {
       }
 
       try {
-        // FIX: Add a comment to disable the ESLint rule for this specific line.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const provider = new ethers.BrowserProvider(window.ethereum as any);
 

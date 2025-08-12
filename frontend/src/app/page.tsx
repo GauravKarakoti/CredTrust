@@ -116,6 +116,7 @@ export default function Home() {
     // Fetches all available loan products
     const fetchAvailableLoans = async () => {
       if (window.ethereum) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const provider = new ethers.BrowserProvider(window.ethereum as any);
         const loanContract = getContract(CONTRACT_ADDRESSES.loanContract, LoanContractABI, provider);
         try {
