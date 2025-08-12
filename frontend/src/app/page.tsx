@@ -15,6 +15,7 @@ import {
   CredTrustRegistryABI,
   getContract 
 } from "../utils/contracts";
+import { type Loan } from "../types";
 
 const swapContractAddress = "0x418103499076ad5731F07c06881f101c3539BC86";
 
@@ -28,8 +29,7 @@ export default function Home() {
   const [isIPFSModalOpen, setIsIPFSModalOpen] = useState(false);
   const [availableLoans, setAvailableLoans] = useState<any[]>([]);
 
-  // NEW: State for the user's applied-for loans
-  const [myLoans, setMyLoans] = useState<any[]>([]);
+  const [myLoans, setMyLoans] = useState<Loan[]>([]);
   
   const signer = useEthersSigner();
 
@@ -120,7 +120,7 @@ export default function Home() {
         const loanContract = getContract(CONTRACT_ADDRESSES.loanContract, LoanContractABI, provider);
         try {
           const loanCount = await loanContract.getLoanProductCount();
-          const loansData: any[] = [];
+          const loansData: Loan[] = [];
           for (let i = 0; i < Number(loanCount); i++) {
             const loan = await loanContract.getLoanProduct(i);
             loansData.push({
@@ -175,7 +175,6 @@ export default function Home() {
   }, [signer]);
 
   const handleApplyForLoan = async (productId: number) => {
-    // ... (This function is correct, but we can add a refresh call)
     if (!signer) {
       alert("Please connect your wallet first!");
       return;

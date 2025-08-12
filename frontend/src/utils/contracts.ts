@@ -40,9 +40,9 @@ export const CONTRACT_ADDRESSES = {
 };
 
 export const getContract = (
-  address: string,
-  abi: any,
-  signerOrProvider: ethers.Signer | ethers.Provider
+  address: string, 
+  abi: ethers.InterfaceAbi, 
+  runner: ethers.ContractRunner
 ) => {
-  return new ethers.Contract(address, abi, signerOrProvider);
+  return new ethers.Contract(address, abi, runner);
 };

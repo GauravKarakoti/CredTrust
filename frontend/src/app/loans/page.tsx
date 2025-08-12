@@ -8,9 +8,10 @@ import {
   LoanContractABI,
   getContract 
 } from "../../utils/contracts";
+import { type Loan } from "../../types";
 
 export default function LoansPage() {
-  const [loans, setLoans] = useState<any[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -32,26 +33,24 @@ export default function LoansPage() {
         );
 
         const loanCount = await loanContract.getLoanProductCount();
-        const loansData = [];
+        const loansData: Loan[] = [];
         
         for (let i = 0; i < Number(loanCount); i++) {
           const loan = await loanContract.getLoanProduct(i);
-          
-          // FIX: Access the struct properties by their index
           loansData.push({
             id: i,
-            amount: ethers.formatEther(loan[0]), // loan.amount -> loan[0]
-            interestRate: loan[1],               // loan.interestRate -> loan[1]
-            duration: loan[2],                   // loan.duration -> loan[2]
-            collateralized: loan[3]              // loan.collateralized -> loan[3]
+            amount: ethers.formatEther(loan[0]),
+            interestRate: loan[1],
+            duration: loan[2],
+            collateralized: loan[3]
           });
         }
 
         setLoans(loansData);
         setError("");
-      } catch (err) {
+      } catch (err: unknown) { // Use unknown for errors
         console.error("Error fetching loans:", err);
-        setError("Failed to load loan products. Please ensure you are on the correct network and try again.");
+        setError("Failed to load loan products.");
       } finally {
         setLoading(false);
       }
@@ -61,7 +60,6 @@ export default function LoansPage() {
   }, []);
 
   const handleApplyForLoan = async (productId: number) => {
-    // ... (This function remains unchanged)
     if (!window.ethereum) {
       alert("Please connect your wallet first!");
       return;
@@ -77,13 +75,15 @@ export default function LoansPage() {
       );
 
       const tx = await loanContract.applyForLoan(productId);
-      alert("Submitting your loan application... Please wait for the transaction to confirm.");
       await tx.wait();
       alert("Loan application submitted successfully!");
-    } catch (error: any) {
+    } catch (error: unknown) { // Use unknown for errors
       console.error("Loan application failed:", error);
-      const reason = error.reason || "An unknown error occurred.";
-      alert(`Error: ${reason}`);
+      if (error instanceof Error) {
+        alert(`Error: ${error.message}`);
+      } else {
+        alert("An unknown error occurred.");
+      }
     }
   };
 
