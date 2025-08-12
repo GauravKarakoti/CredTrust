@@ -26,7 +26,8 @@
     "tailwind-merge": "^3.3.0",
     "tailwindcss-animate": "^1.0.7",
     "viem": "^2.33.3",
-    "wagmi": "^2.16.2"
+    "wagmi": "^2.16.2",
+    "pino-pretty": "^11.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
