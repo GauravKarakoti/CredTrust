@@ -10,13 +10,7 @@ import {
   CredTrustRegistryABI, 
   getContract 
 } from "../../utils/contracts";
-
-// Define a type for our structured attestation data
-interface Attestation {
-  attester: string;
-  amount: string; // We'll store it as a formatted string
-  timestamp: string;
-}
+import { type Attestation, type AttestationStruct } from "../../types";
 
 export default function AttestationsCard() {
   const [attestations, setAttestations] = useState<Attestation[]>([]);
@@ -43,21 +37,19 @@ export default function AttestationsCard() {
         signer
       );
       
-      const onChainAttestations = await registry.getAttestations(address);
+      const onChainAttestations: AttestationStruct[] = await registry.getAttestations(address);
       
-      const formattedAttestations = onChainAttestations.map((att: any) => ({
+      const formattedAttestations = onChainAttestations.map((att: AttestationStruct) => ({
         attester: att[0],
         amount: ethers.formatUnits(att[1], 18),
         timestamp: new Date(Number(att[2]) * 1000).toLocaleString(),
       }));
 
-      // FIX: Call the new explicit getter function 'getStakedAmount'
       const stakedAmount = await registry.getStakedAmount(address);
-      
       setTotalStaked(stakedAmount);
       setAttestations(formattedAttestations);
 
-    } catch (error) {
+    } catch (error: unknown) { // Use unknown for errors
       console.error("Error fetching attestations:", error);
     } finally {
       setLoading(false);
@@ -86,9 +78,11 @@ export default function AttestationsCard() {
       
       alert("Unstake successful!");
       await fetchAttestationData(); // Refresh the data
-    } catch (error: any) {
+    } catch (error: unknown) { // Use unknown for errors
       console.error("Unstaking failed:", error);
-      alert(`Unstaking failed: ${error.reason || "An unknown error occurred."}`);
+      if (error instanceof Error) {
+        alert(`Unstaking failed: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }

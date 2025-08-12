@@ -58,10 +58,14 @@ export default function StakeModal({
 
       onStake(amount);
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) { // Use unknown for errors
       console.error("Staking failed:", err);
-      // More user-friendly error parsing
-      const reason = err.reason || "An unknown error occurred during staking.";
+      let reason = "An unknown error occurred during staking.";
+      if (err instanceof Error) {
+          // Check for ethers-specific reason property
+          const ethersError = err as Error & { reason?: string };
+          reason = ethersError.reason || err.message;
+      }
       setError(reason);
     } finally {
       setLoading(false);

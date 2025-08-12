@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useContracts } from "../../hooks/useContract";
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
+import { type Loan, type LoanStruct } from "../../types";
 
 export default function CreditGateModal({ 
   isOpen, 
@@ -15,7 +16,7 @@ export default function CreditGateModal({
   score: number;
 }) {
   const { loanContract } = useContracts();
-  const [loanProducts, setLoanProducts] = useState<any[]>([]);
+  const [loanProducts, setLoanProducts] = useState<Loan[]>([]); // Use Loan type
   const router = useRouter();
 
   useEffect(() => {
@@ -23,21 +24,22 @@ export default function CreditGateModal({
       if (loanContract) {
         try {
           const loanCount = await loanContract.getLoanProductCount();
-          const loans: any[] = [];
+          const loans: Loan[] = []; // Use Loan type
           
           for (let i = 0; i < Number(loanCount); i++) {
-            const loan = await loanContract.loanProducts(i);
+            // FIX: You must call getLoanProduct(i) and access by index
+            const loan: LoanStruct = await loanContract.getLoanProduct(i);
             loans.push({
               id: i,
-              amount: ethers.formatEther(loan.amount),
-              interestRate: loan.interestRate,
-              duration: loan.duration,
-              collateralized: loan.collateralized
+              amount: ethers.formatEther(loan[0]),
+              interestRate: loan[1],
+              duration: loan[2],
+              collateralized: loan[3]
             });
           }
           
           setLoanProducts(loans);
-        } catch (error) {
+        } catch (error: unknown) { // Use unknown for errors
           console.error("Error fetching loans:", error);
         }
       }

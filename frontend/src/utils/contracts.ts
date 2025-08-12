@@ -42,7 +42,7 @@ export const CONTRACT_ADDRESSES = {
 export const getContract = (
   address: string, 
   abi: ethers.InterfaceAbi, 
-  runner: ethers.ContractRunner
+  runner: ethers.ContractRunner | null // Allow null for read-only instances
 ) => {
   return new ethers.Contract(address, abi, runner);
 };
