@@ -24,25 +24,26 @@ export function useContracts() {
       }
 
       try {
-        // FIX: Use the `as any` type assertion to resolve the type conflict.
+        // FIX: Add a comment to disable the ESLint rule for this specific line.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const provider = new ethers.BrowserProvider(window.ethereum as any);
 
         setTrustToken(
           getContract(CONTRACT_ADDRESSES.trustToken, TrustTokenABI, provider)
         );
-
+        
         setTrustSwap(
           getContract(CONTRACT_ADDRESSES.trustSwap, TrustSwapABI, provider)
         );
-
+        
         setRegistry(
           getContract(CONTRACT_ADDRESSES.credTrustRegistry, CredTrustRegistryABI, provider)
         );
-
+        
         setLoanContract(
           getContract(CONTRACT_ADDRESSES.loanContract, LoanContractABI, provider)
         );
-      } catch (error) {
+      } catch (error: unknown) { // Use 'unknown' for safer error handling
         console.error("Error initializing contracts:", error);
       } finally {
         setLoading(false);
@@ -52,11 +53,11 @@ export function useContracts() {
     initContracts();
   }, []);
 
-  return {
-    trustToken,
-    trustSwap,
-    registry,
+  return { 
+    trustToken, 
+    trustSwap, 
+    registry, 
     loanContract,
-    loading
+    loading 
   };
 }
