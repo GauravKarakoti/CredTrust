@@ -11,7 +11,7 @@ import {
   getContract 
 } from "../../utils/contracts";
 
-// Define a type for our attestation data
+// Define a type for our structured attestation data
 interface Attestation {
   attester: string;
   amount: string; // We'll store it as a formatted string
@@ -26,9 +26,11 @@ export default function AttestationsCard() {
   
   const signer = useEthersSigner();
 
-  const fetchAttestations = useCallback(async () => {
+  const fetchAttestationData = useCallback(async () => {
     if (!signer) {
       setLoading(false);
+      setAttestations([]);
+      setTotalStaked(BigInt(0));
       return;
     }
     
@@ -49,11 +51,12 @@ export default function AttestationsCard() {
         timestamp: new Date(Number(att[2]) * 1000).toLocaleString(),
       }));
 
-      // Calculate total staked amount
-      const stakedAmount = await registry.stakedAmounts(address);
+      // FIX: Call the new explicit getter function 'getStakedAmount'
+      const stakedAmount = await registry.getStakedAmount(address);
+      
       setTotalStaked(stakedAmount);
-
       setAttestations(formattedAttestations);
+
     } catch (error) {
       console.error("Error fetching attestations:", error);
     } finally {
@@ -62,9 +65,10 @@ export default function AttestationsCard() {
   }, [signer]);
 
   useEffect(() => {
-    fetchAttestations();
-  }, [fetchAttestations]);
+    fetchAttestationData();
+  }, [fetchAttestationData]);
 
+  // Real unstake function that sends a transaction
   const handleUnstake = async () => {
     if (!signer || totalStaked === BigInt(0)) return;
 
@@ -76,13 +80,12 @@ export default function AttestationsCard() {
         signer
       );
 
-      // We will unstake the entire amount for simplicity in this UI
+      // Unstake the entire amount
       const tx = await registry.unstake(totalStaked);
       await tx.wait();
       
       alert("Unstake successful!");
-      // Refresh the attestations list after unstaking
-      await fetchAttestations(); 
+      await fetchAttestationData(); // Refresh the data
     } catch (error: any) {
       console.error("Unstaking failed:", error);
       alert(`Unstaking failed: ${error.reason || "An unknown error occurred."}`);
@@ -96,27 +99,28 @@ export default function AttestationsCard() {
       <StakeModal 
         isOpen={isStakeModalOpen} 
         onClose={() => setIsStakeModalOpen(false)}
-        // Refresh data after a successful stake
-        onStake={() => fetchAttestations()}
+        onStake={() => fetchAttestationData()}
       />
       
       <h3 className="text-lg font-medium">Your Attestations</h3>
-      <p className="text-sm text-zinc-400">Total Staked: {ethers.formatUnits(totalStaked, 18)} TRUST</p>
+      <p className="text-sm text-zinc-400">
+        Total Staked: {parseFloat(ethers.formatUnits(totalStaked, 18)).toFixed(2)} TRUST
+      </p>
       
       <ul className="mt-3 space-y-2 text-sm text-zinc-300 h-24 overflow-y-auto">
         {loading ? (
-          <li className="text-zinc-500">Loading attestations...</li>
+          <li className="text-zinc-500">Loading...</li>
         ) : attestations.length > 0 ? (
           attestations.map((att, index) => (
             <li key={index} className="flex items-start">
               <span className="text-emerald-500 mr-2">•</span>
               <span>
-                Attester {att.attester.substring(0, 6)}... staked {att.amount} TRUST on {att.timestamp}
+                Attester {att.attester.substring(0, 6)}... staked {parseFloat(att.amount).toFixed(2)} TRUST on {att.timestamp}
               </span>
             </li>
           ))
         ) : (
-          <li className="text-zinc-500">No active attestations</li>
+          <li className="text-zinc-500">No active attestations for you.</li>
         )}
       </ul>
       

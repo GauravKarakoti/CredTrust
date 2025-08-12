@@ -19,22 +19,24 @@ export const CredTrustRegistryABI = [
   "function getScore(address) view returns (uint256)",
   "function getAttestations(address) view returns (tuple(address,uint256,uint256)[])",
   "event Attested(address indexed user, address indexed attester, uint256 amount)",
-  "function updateScore(address,(uint256,uint256,uint256,uint256,uint256),string)"
+  "function updateScore(address,(uint256,uint256,uint256,uint256,uint256),string)",
+  "function getStakedAmount(address) view returns (uint256)"
 ];
 
 export const LoanContractABI = [
   "function applyForLoan(uint256)",
   "function addLoanProduct(uint256,uint256,uint256,bool)",
   "function getLoanProductCount() view returns (uint256)",
-  "function getLoanProduct(uint256) view returns ((uint256,uint256,uint256,bool))"
+  "function getLoanProduct(uint256) view returns ((uint256,uint256,uint256,bool))",
+  "function getAppliedLoans(address) view returns (uint256[])"
 ];
 
 // Replace with your actual contract addresses
 export const CONTRACT_ADDRESSES = {
-  trustToken: "0x400279668ED8f2B8873FF256a5719AbBbbe7670F",
-  trustSwap: "0x2741e9f552B975A91C90fd5E6f39Aaa8E67dFAd1",
-  credTrustRegistry: "0x776Ad32c837737De4B493637c0Fa7F052Ef0d0dE",
-  loanContract: "0xBe931B3CF64E3E16143C4BC24861f563cEee635D",
+  trustToken: "0x6Ff38A1413BfB528Ccd3966a40a41A9E6d2c0649",
+  trustSwap: "0x418103499076ad5731F07c06881f101c3539BC86",
+  credTrustRegistry: "0xec71298971071c4aF4cEa2536C045737e4569961",
+  loanContract: "0x5a10C37C6dD8cFbb00c851a307fE9DDD2de59263",
 };
 
 export const getContract = (

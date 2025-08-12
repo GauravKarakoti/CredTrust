@@ -71,4 +71,8 @@ contract CredTrustRegistry is ScoreCalculator {
     function getAttestations(address user) external view returns (Attestation[] memory) {
         return attestations[user];
     }
+
+    function getStakedAmount(address staker) public view returns (uint256) {
+        return stakedAmounts[staker];
+    }
 }

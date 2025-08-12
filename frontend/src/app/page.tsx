@@ -16,10 +16,9 @@ import {
   getContract 
 } from "../utils/contracts";
 
-const swapContractAddress = "0x2741e9f552B975A91C90fd5E6f39Aaa8E67dFAd1";
+const swapContractAddress = "0x418103499076ad5731F07c06881f101c3539BC86";
 
 export default function Home() {
-  // All state is now managed here in the parent component
   const [score, setScore] = useState<number>(0);
   const [scoreLoading, setScoreLoading] = useState(true);
   const [isRecalculating, setIsRecalculating] = useState(false);
@@ -27,11 +26,13 @@ export default function Home() {
   
   const [isCreditGateOpen, setIsCreditGateOpen] = useState(false);
   const [isIPFSModalOpen, setIsIPFSModalOpen] = useState(false);
-  const [loans, setLoans] = useState<any[]>([]);
+  const [availableLoans, setAvailableLoans] = useState<any[]>([]);
+
+  // NEW: State for the user's applied-for loans
+  const [myLoans, setMyLoans] = useState<any[]>([]);
   
   const signer = useEthersSigner();
 
-  // --- Logic moved up from ScoreCard ---
   const fetchScore = useCallback(async () => {
     if (signer) {
       try {
@@ -112,69 +113,97 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const fetchLoans = async () => {
-      // FIX 1: Add a check for window.ethereum
+    // Fetches all available loan products
+    const fetchAvailableLoans = async () => {
       if (window.ethereum) {
-        // FIX 1: Use `as any` assertion
         const provider = new ethers.BrowserProvider(window.ethereum as any);
-        const loanContract = getContract(
-          CONTRACT_ADDRESSES.loanContract,
-          LoanContractABI,
-          provider
-        );
-
+        const loanContract = getContract(CONTRACT_ADDRESSES.loanContract, LoanContractABI, provider);
         try {
-          // FIX 2: Call the correct getter function for array length
           const loanCount = await loanContract.getLoanProductCount();
-          
-          // FIX 3: Explicitly type the local array
-          const loans: any[] = [];
-
+          const loansData: any[] = [];
           for (let i = 0; i < Number(loanCount); i++) {
-            const loan = await loanContract.loanProducts(i);
-            loans.push({
+            const loan = await loanContract.getLoanProduct(i);
+            loansData.push({
               id: i,
-              amount: ethers.formatEther(loan.amount),
-              interestRate: loan.interestRate,
-              duration: loan.duration,
-              collateralized: loan.collateralized
+              amount: ethers.formatEther(loan[0]),
+              interestRate: loan[1],
+              duration: loan[2],
+              collateralized: loan[3]
             });
           }
-
-          setLoans(loans);
+          setAvailableLoans(loansData);
         } catch (error) {
-          console.error("Error fetching loans:", error);
+          console.error("Error fetching available loans:", error);
         }
       }
     };
 
-    fetchLoans();
+    fetchAvailableLoans();
   }, []);
 
+  // NEW: Effect to fetch the user's applied-for loans
+  useEffect(() => {
+    const fetchMyLoans = async () => {
+      if (signer) {
+        const address = await signer.getAddress();
+        const loanContract = getContract(CONTRACT_ADDRESSES.loanContract, LoanContractABI, signer);
+        try {
+          // 1. Get the array of applied loan IDs
+          const myLoanIds = await loanContract.getAppliedLoans(address);
+
+          // 2. For each ID, fetch the full loan details
+          const myLoansData = await Promise.all(
+            myLoanIds.map(async (id: bigint) => {
+              const loan = await loanContract.getLoanProduct(id);
+              return {
+                id: Number(id),
+                amount: ethers.formatEther(loan[0]),
+                interestRate: loan[1],
+                duration: loan[2],
+                collateralized: loan[3]
+              };
+            })
+          );
+          setMyLoans(myLoansData);
+        } catch (error) {
+          console.error("Error fetching my loans:", error);
+        }
+      }
+    };
+
+    fetchMyLoans();
+  }, [signer]);
 
   const handleApplyForLoan = async (productId: number) => {
-    // FIX 4: Add a check for window.ethereum
-    if (!window.ethereum) {
+    // ... (This function is correct, but we can add a refresh call)
+    if (!signer) {
       alert("Please connect your wallet first!");
       return;
     }
-
     try {
-      // FIX 4: Use `as any` assertion
-      const provider = new ethers.BrowserProvider(window.ethereum as any);
-      const signer = await provider.getSigner();
-      const loanContract = getContract(
-        CONTRACT_ADDRESSES.loanContract,
-        LoanContractABI,
-        signer
-      );
-
+      const loanContract = getContract(CONTRACT_ADDRESSES.loanContract, LoanContractABI, signer);
       const tx = await loanContract.applyForLoan(productId);
       await tx.wait();
       alert("Loan application submitted successfully!");
+      // Refresh the list of "My Loans" after applying
+      const address = await signer.getAddress();
+      const myLoanIds = await loanContract.getAppliedLoans(address);
+      const myLoansData = await Promise.all(
+        myLoanIds.map(async (id: bigint) => {
+          const loan = await loanContract.getLoanProduct(id);
+          return {
+            id: Number(id),
+            amount: ethers.formatEther(loan[0]),
+            interestRate: loan[1],
+            duration: loan[2],
+            collateralized: loan[3]
+          };
+        })
+      );
+      setMyLoans(myLoansData);
     } catch (error: any) {
       console.error("Loan application failed:", error);
-      alert(`Error: ${error.message || "Loan application failed"}`);
+      alert(`Error: ${error.reason || "Loan application failed"}`);
     }
   };
 
@@ -224,7 +253,7 @@ export default function Home() {
         timestamp: "2023-10-15T14:30:00Z"
       }
     ],
-    contractAddress: "0x776Ad32c837737De4B493637c0Fa7F052Ef0d0dE"
+    contractAddress: "0xec71298971071c4aF4cEa2536C045737e4569961"
   };
 
   return (
@@ -238,8 +267,7 @@ export default function Home() {
           <WalletButton />
         </header>
 
-        <section className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-          {/* ScoreCard now receives all its data and functions as props */}
+        <section className="mt-8 grid grid-cols-1 gap-6 md-grid-cols-2 lg:grid-cols-3">
           <ScoreCard 
             score={score}
             loading={scoreLoading}
@@ -248,30 +276,26 @@ export default function Home() {
             onViewIPFS={handleViewIPFS}
           />
           <AttestationsCard />
-          
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
             <h3 className="text-lg font-medium">Available Loans</h3>
             <div className="mt-4 space-y-3">
-              {loans.length > 0 ? (
-                loans.map((loan) => (
-                  <div 
-                    key={loan.id} 
-                    className="p-3 border border-zinc-700 rounded-lg hover:bg-zinc-800/30 cursor-pointer"
-                    onClick={() => handleApplyForLoan(loan.id)}
-                  >
-                    <div className="flex justify-between">
-                      <span>{loan.amount} ETH</span>
-                      <span className="text-emerald-400">{Number(loan.interestRate) / 100}% APR</span>
-                    </div>
-                    <div className="text-sm text-zinc-400 mt-1">
-                      {loan.collateralized ? "Collateralized" : "Uncollateralized"} • 
-                      Duration: {Math.floor(Number(loan.duration) / 86400)} days
-                    </div>
+              {availableLoans.map((loan) => (
+                <div 
+                  key={loan.id} 
+                  className="p-3 border border-zinc-700 rounded-lg hover:bg-zinc-800/30 cursor-pointer"
+                  onClick={() => handleApplyForLoan(loan.id)}
+                >
+                  <div className="flex justify-between">
+                    <span>{loan.amount} ETH</span>
+                    <span className="text-emerald-400">{Number(loan.interestRate) / 100}% APR</span>
                   </div>
+                  <div className="text-sm text-zinc-400 mt-1">
+                    {loan.collateralized ? "Collateralized" : "Uncollateralized"} • 
+                    Duration: {Math.floor(Number(loan.duration) / 86400)} days
+                  </div>
+                </div>
                 ))
-              ) : (
-                <p className="text-sm text-zinc-500">No loan products available.</p>
-              )}
+              }
             </div>
           </div>
           <button onClick={handleSwap} className="rounded-md border border-zinc-700 px-4 py-2 hover:bg-zinc-800">Swap ETH for TRUST</button>
@@ -282,7 +306,7 @@ export default function Home() {
             <h3 className="text-lg font-medium">Developer</h3>
             <ul className="mt-3 list-disc space-y-1 pl-5 text-zinc-300">
               <li>
-                <Link href="https://etherscan.io/address/0x776Ad32c837737De4B493637c0Fa7F052Ef0d0dE" className="underline underline-offset-4 hover:text-zinc-100">
+                <Link href="https://etherscan.io/address/0xec71298971071c4aF4cEa2536C045737e4569961" className="underline underline-offset-4 hover:text-zinc-100">
                   Registry contract
                 </Link>
               </li>
@@ -310,6 +334,27 @@ export default function Home() {
             >
               Try Credit Gate
             </button>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 md:col-span-2">
+            <h3 className="text-lg font-medium">Your Applied Loans</h3>
+            <div className="mt-4 space-y-3">
+              {myLoans.length > 0 ? (
+                myLoans.map((loan) => (
+                  <div key={loan.id} className="p-3 bg-zinc-800/50 rounded-lg">
+                    <div className="flex justify-between">
+                      <span className="font-medium">{loan.amount} ETH</span>
+                      <span className="text-sm text-emerald-400">Application Submitted</span>
+                    </div>
+                    <div className="text-sm text-zinc-400 mt-1">
+                      {Number(loan.interestRate) / 100}% APR • {Math.floor(Number(loan.duration) / 86400)} days
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-zinc-500">You have not applied for any loans yet.</p>
+              )}
+            </div>
           </div>
         </section>
       </div>

@@ -15,6 +15,10 @@ contract LoanContract {
     }
     
     Loan[] public loanProducts;
+
+    // NEW: Mappings to track who applied for which loans
+    mapping(address => uint256[]) public appliedLoans;
+    mapping(address => mapping(uint256 => bool)) public hasApplied;
     
     event LoanApproved(address indexed borrower, uint256 productId);
     
@@ -28,6 +32,10 @@ contract LoanContract {
     
     function applyForLoan(uint256 productId) external {
         require(productId < loanProducts.length, "Invalid product");
+        
+        // NEW: Check if the user has already applied for this specific loan
+        require(!hasApplied[msg.sender][productId], "Already applied for this loan");
+
         Loan memory product = loanProducts[productId];
         
         uint256 score = registry.getScore(msg.sender);
@@ -36,6 +44,10 @@ contract LoanContract {
         if (!product.collateralized) {
             require(score >= 750, "Higher score required for uncollateralized");
         }
+        
+        // NEW: Record the successful application
+        appliedLoans[msg.sender].push(productId);
+        hasApplied[msg.sender][productId] = true;
         
         // Implement actual loan disbursement logic here
         emit LoanApproved(msg.sender, productId);
@@ -48,6 +60,11 @@ contract LoanContract {
     
     function getLoanProductCount() public view returns (uint256) {
         return loanProducts.length;
+    }
+
+    // NEW: Getter function to fetch the list of applied loan IDs for a user
+    function getAppliedLoans(address borrower) public view returns (uint256[] memory) {
+        return appliedLoans[borrower];
     }
 
     function addLoanProduct(
