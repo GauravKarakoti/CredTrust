@@ -13,11 +13,15 @@ import {
   TrustSwapABI,
   LoanContractABI,
   CredTrustRegistryABI,
+  UNISWAP_LP_ABI, 
+  AAVE_MOCK_ABI, // New ABI
+  TX_VOLUME_MOCK_ABI, // New ABI
+  IDENTITY_VERIFICATION_ABI, // New ABI
   getContract 
 } from "../utils/contracts";
 import { type Loan, type LoanStruct } from "../types";
 
-const swapContractAddress = "0x418103499076ad5731F07c06881f101c3539BC86";
+const swapContractAddress = "0xecd5de94D0331279367fA8AA5b5f56Cce151bf3d";
 
 export default function Home() {
   const [score, setScore] = useState<number>(0);
@@ -70,20 +74,44 @@ export default function Home() {
     setIsRecalculating(true);
     try {
       const address = await signer.getAddress();
+      const provider = signer.provider;
       const registry = getContract(
         CONTRACT_ADDRESSES.credTrustRegistry,
         CredTrustRegistryABI,
         signer
       );
 
-      // The factors array no longer includes the staked amount directly,
-      // as the smart contract now adds it. The order must match the updated struct.
+      // --- FIX: Fetch on-chain data from the correct contracts ---
+      
+      const uniswapLP = getContract(CONTRACT_ADDRESSES.uniswapLP, UNISWAP_LP_ABI, provider);
+      const aaveMock = getContract(CONTRACT_ADDRESSES.aaveMock, AAVE_MOCK_ABI, provider);
+      const txVolumeMock = getContract(CONTRACT_ADDRESSES.transactionVolumeMock, TX_VOLUME_MOCK_ABI, provider);
+      const identityVerification = getContract(CONTRACT_ADDRESSES.identityVerificationMock, IDENTITY_VERIFICATION_ABI, provider);
+
+      // FIX: 1. Fetch staked amount from the CredTrustRegistry contract, not TrustSwap
+      const stakedAmount = await registry.getStakedAmount(address);
+
+      // 2. Fetch Uniswap LP duration
+      const lpDepositTimestamp = await uniswapLP.lpDepositTimestamp(address);
+      const uniswapLpDuration = Math.floor((Date.now() / 1000) - Number(lpDepositTimestamp));
+      
+      // 3. Fetch Aave repayments from mock contract
+      const aaveRepayments = await aaveMock.getRepayments(address);
+
+      // 4. Fetch Transaction Volume from mock contract
+      const transactionVolume = await txVolumeMock.getTxVolume(address);
+      
+      // 5. Fetch Identity Verification status from mock contract
+      const isVerified = await identityVerification.isVerified(address);
+      const identityVerified = isVerified ? 100 : 0;
+      
+      // The factors array now contains real data
       const factorsAsArray = [
-        Math.floor(Math.random() * 101), // aaveRepayments
-        Math.floor(Math.random() * 101), // uniswapLpDuration
-        0,                               // Placeholder for stakedAmount (contract will fill this)
-        Math.floor(Math.random() * 101), // transactionVolume
-        Math.random() > 0.5 ? 100 : 0    // identityVerified
+        Number(aaveRepayments), 
+        Number(uniswapLpDuration), 
+        stakedAmount,
+        Number(transactionVolume), 
+        identityVerified
       ];
       
       const newIpfsHash = `QmRecalc${Math.random().toString(36).substring(2, 10)}`;
@@ -113,7 +141,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    // Fetches all available loan products
     const fetchAvailableLoans = async () => {
       if (window.ethereum) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -121,7 +148,7 @@ export default function Home() {
         const loanContract = getContract(CONTRACT_ADDRESSES.loanContract, LoanContractABI, provider);
         try {
           const loanCount = await loanContract.getLoanProductCount();
-          const loansData: Loan[] = []; // Use Loan type
+          const loansData: Loan[] = []; 
         for (let i = 0; i < Number(loanCount); i++) {
           const loan: LoanStruct = await loanContract.getLoanProduct(i);
             loansData.push({
@@ -142,17 +169,14 @@ export default function Home() {
     fetchAvailableLoans();
   }, []);
 
-  // NEW: Effect to fetch the user's applied-for loans
   useEffect(() => {
     const fetchMyLoans = async () => {
       if (signer) {
         const address = await signer.getAddress();
         const loanContract = getContract(CONTRACT_ADDRESSES.loanContract, LoanContractABI, signer);
         try {
-          // 1. Get the array of applied loan IDs
           const myLoanIds = await loanContract.getAppliedLoans(address);
 
-          // 2. For each ID, fetch the full loan details
           const myLoansData = await Promise.all(
             myLoanIds.map(async (id: bigint) => {
               const loan = await loanContract.getLoanProduct(id);
@@ -185,7 +209,6 @@ export default function Home() {
       const tx = await loanContract.applyForLoan(productId);
       await tx.wait();
       alert("Loan application submitted successfully!");
-      // Refresh the list of "My Loans" after applying
       const address = await signer.getAddress();
       const myLoanIds = await loanContract.getAppliedLoans(address);
       const myLoansData = await Promise.all(
@@ -201,11 +224,10 @@ export default function Home() {
         })
       );
       setMyLoans(myLoansData);
-    } catch (error: unknown) { // FIX: Use unknown and perform type check
+    } catch (error: unknown) {
       console.error("Loan application failed:", error);
       let message = "Loan application failed";
       if (error instanceof Error) {
-        // Ethers errors often have a 'reason' property
         const ethersError = error as Error & { reason?: string };
         message = ethersError.reason || error.message;
       }
@@ -214,22 +236,19 @@ export default function Home() {
   };
 
   const handleSwap = async () => {
-    // 1. Check if the signer is available
     if (!signer) {
       alert("Please connect your wallet first!");
       return;
     }
 
     try {
-      // 2. Instantiate the contract correctly with address, ABI, and signer
       const swapContract = new ethers.Contract(swapContractAddress, TrustSwapABI, signer);
       
-      // 3. Call the contract function
       console.log("Sending swap transaction...");
       const tx = await swapContract.swapTokens({ value: parseEther("0.0001") });
       
       console.log("Transaction sent:", tx.hash);
-      await tx.wait(); // Wait for the transaction to be mined
+      await tx.wait();
       console.log("Transaction confirmed!");
       alert("Swap successful!");
 
@@ -239,7 +258,6 @@ export default function Home() {
     }
   }
   
-  // ... (mockIPFSData and the rest of the return statement is unchanged)
   const mockIPFSData = {
     cid: "QmXyZ123abc456def789ghi",
     timestamp: new Date().toISOString(),
@@ -259,7 +277,7 @@ export default function Home() {
         timestamp: "2023-10-15T14:30:00Z"
       }
     ],
-    contractAddress: "0xec71298971071c4aF4cEa2536C045737e4569961"
+    contractAddress: "0x51291d5A706a262662E424AB4E9E75CA60df16d5"
   };
 
   return (
@@ -312,7 +330,7 @@ export default function Home() {
             <h3 className="text-lg font-medium">Developer</h3>
             <ul className="mt-3 list-disc space-y-1 pl-5 text-zinc-300">
               <li>
-                <Link href="https://etherscan.io/address/0xec71298971071c4aF4cEa2536C045737e4569961" className="underline underline-offset-4 hover:text-zinc-100">
+                <Link href="https://etherscan.io/address/0x51291d5A706a262662E424AB4E9E75CA60df16d5" className="underline underline-offset-4 hover:text-zinc-100">
                   Registry contract
                 </Link>
               </li>

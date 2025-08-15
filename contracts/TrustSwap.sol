@@ -5,7 +5,7 @@ import "./TrustToken.sol";
 
 contract TrustSwap {
     TrustToken public trustToken;
-    uint256 public swapRate = 100; // 1 ETH = 100 TRUST
+    uint256 public swapRate = 500000; // 1 ETH = 500000 TRUST
     
     event TokensSwapped(address indexed user, uint256 ethAmount, uint256 tokenAmount);
     

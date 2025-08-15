@@ -1,4 +1,5 @@
 const { ethers } = require("hardhat");
+const fs = require("fs");
 
 async function main() {
   // Deploy TrustToken
@@ -13,18 +14,36 @@ async function main() {
   await trustSwap.waitForDeployment();
   console.log("TrustSwap deployed to:", trustSwap.target);
 
-  // --- NEW: Fund the TrustSwap contract ---
+  // Fund the TrustSwap contract
   console.log("Funding TrustSwap contract with TRUST tokens...");
-  // Define how many tokens to send. Let's send 500,000 tokens.
-  // We use parseUnits to handle the 18 decimals of the ERC20 token.
   const amountToFund = ethers.parseUnits("500000", 18);
-  
-  // Call the transfer function on the TrustToken contract
   const tx = await trustToken.transfer(trustSwap.target, amountToFund);
-  await tx.wait(); // Wait for the transaction to be mined
-  
+  await tx.wait();
   console.log(`Successfully transferred ${ethers.formatUnits(amountToFund, 18)} TRUST to ${trustSwap.target}`);
-  // --- END OF NEW CODE ---
+
+  // Deploy Uniswap_LP
+  const UniswapLP = await ethers.getContractFactory("Uniswap_LP");
+  const uniswapLP = await UniswapLP.deploy();
+  await uniswapLP.waitForDeployment();
+  console.log("Uniswap_LP deployed to:", uniswapLP.target);
+
+  // Deploy AaveMock
+  const AaveMock = await ethers.getContractFactory("AaveMock");
+  const aaveMock = await AaveMock.deploy();
+  await aaveMock.waitForDeployment();
+  console.log("AaveMock deployed to:", aaveMock.target);
+
+  // Deploy TransactionVolumeMock
+  const TransactionVolumeMock = await ethers.getContractFactory("TransactionVolumeMock");
+  const transactionVolumeMock = await TransactionVolumeMock.deploy();
+  await transactionVolumeMock.waitForDeployment();
+  console.log("TransactionVolumeMock deployed to:", transactionVolumeMock.target);
+
+  // Deploy IdentityVerificationMock
+  const IdentityVerificationMock = await ethers.getContractFactory("IdentityVerificationMock");
+  const identityVerificationMock = await IdentityVerificationMock.deploy();
+  await identityVerificationMock.waitForDeployment();
+  console.log("IdentityVerificationMock deployed to:", identityVerificationMock.target);
 
   // Deploy CredTrustRegistry
   const CredTrustRegistry = await ethers.getContractFactory("CredTrustRegistry");
@@ -39,12 +58,15 @@ async function main() {
   console.log("LoanContract deployed to:", loanContract.target);
 
   // Save contract addresses to a file (for frontend)
-  const fs = require("fs");
   const contracts = {
     trustToken: trustToken.target,
     trustSwap: trustSwap.target,
+    uniswapLP: uniswapLP.target,
+    aaveMock: aaveMock.target,
+    transactionVolumeMock: transactionVolumeMock.target,
+    identityVerificationMock: identityVerificationMock.target,
     credTrustRegistry: credTrustRegistry.target,
-    loanContract: loanContract.target
+    loanContract: loanContract.target,
   };
 
   fs.writeFileSync(

@@ -19,8 +19,6 @@ export default function ScoreCard({
   onRecalculate,
   onViewIPFS,
 }: ScoreCardProps) {
-  
-  // All state and logic has been moved to page.tsx
   // This is now a "presentational" component.
 
   const scoreLevel = score >= 800 ? "Excellent" :
